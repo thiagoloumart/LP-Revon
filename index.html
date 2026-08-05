@@ -602,7 +602,9 @@ section::after,.footer::after{content:"";position:absolute;inset:0;z-index:3;poi
         </ul>
       </div>
 
-      <form class="form-card" id="diagnostico" novalidate>
+      <form class="form-card" id="diagnostico" novalidate
+  data-endpoint="https://ecfjshzxrfzbfxkipygk.supabase.co/rest/v1/leads"
+  data-apikey="sb_publishable_e3W98joRhdE1pQKeflxDlw_qsaQU23x">
         <p class="form-title">Preencha o formulário e receba um contato em até 5 minutos</p>
                 <div class="ff">
           <label class="sr-only" for="f-nome">Nome completo</label>
@@ -978,7 +980,14 @@ section::after,.footer::after{content:"";position:absolute;inset:0;z-index:3;poi
         else    { say('Não foi possível enviar agora. Tente novamente em instantes.', 'err'); }
       };
       if (!endpoint) { document.dispatchEvent(new CustomEvent('revon:lead', { detail: dados })); done(true); return; }
-      fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(dados) })
+      var apikey = form.getAttribute('data-apikey');
+      var cabecalhos = { 'Content-Type':'application/json' };
+      if (apikey) {                                          // Supabase exige a chave em dois headers
+        cabecalhos['apikey'] = apikey;
+        cabecalhos['Authorization'] = 'Bearer ' + apikey;
+        cabecalhos['Prefer'] = 'return=minimal';             // nao tenta devolver a linha inserida
+      }
+      fetch(endpoint, { method:'POST', headers: cabecalhos, body: JSON.stringify(dados) })
         .then(function(r){ done(r.ok); })
         .catch(function(){ done(false); });
     });
