@@ -1,3 +1,4 @@
 deploy/
 *.conf
 .DS_Store
+backups/
