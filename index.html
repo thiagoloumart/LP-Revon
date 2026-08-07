@@ -1250,12 +1250,91 @@ section::after,.footer::after{content:"";position:absolute;inset:0;z-index:3;poi
         cabecalhos['Prefer'] = 'return=minimal';
       }
 
+      var leadsPayload = {
+        nome: rawDados.nome,
+        email: rawDados.email,
+        telefone: rawDados.telefone.replace(/\D/g, ''),
+        clinica: rawDados.clinica,
+        faturamento: rawDados.faturamento,
+        cargo: rawDados.cargo,
+        status_qualificacao: qualificationStatus
+      };
+
+      cabecalhos['Prefer'] = 'return=representation';
+
       fetch(endpoint, {
         method: 'POST',
         headers: cabecalhos,
-        body: JSON.stringify(fullPayload)
+        body: JSON.stringify(leadsPayload)
       })
-      .then(function(r){ done(r.ok); })
+      .then(function(r){
+        if (!r.ok) { done(false); return; }
+        return r.json().then(function(data){
+          var createdLead = (data && data.length) ? data[0] : null;
+          var leadId = createdLead ? createdLead.lead_id : null;
+          if (!leadId) { done(true); return; }
+
+          var baseUrl = endpoint.substring(0, endpoint.indexOf('/rest/v1'));
+          
+          // Ingestão assíncrona em attributions, revops_pipeline e capi_events_log
+          fetch(baseUrl + '/rest/v1/attributions', {
+            method: 'POST',
+            headers: cabecalhos,
+            body: JSON.stringify({
+              lead_id: leadId,
+              event_id: eventId,
+              source_system: 'revon-lp-hof',
+              schema_version: '1.0',
+              page_variant: 'v1_padrao',
+              origem_captacao: utms.utm_source ? 'campanha_com_parametros' : 'organico_direto',
+              utm_source: utms.utm_source || null,
+              utm_medium: utms.utm_medium || null,
+              utm_campaign: utms.utm_campaign || null,
+              utm_campaign_id: utms.utm_campaign_id || null,
+              utm_content: utms.utm_content || null,
+              utm_content_id: utms.utm_content_id || null,
+              utm_term: utms.utm_term || null,
+              utm_term_id: utms.utm_term_id || null,
+              utm_id: utms.utm_id || null,
+              fbclid: utms.fbclid || null,
+              gclid: utms.gclid || null,
+              gbraid: utms.gbraid || null,
+              wbraid: utms.wbraid || null,
+              ttclid: utms.ttclid || null,
+              msclkid: utms.msclkid || null,
+              li_fat_id: utms.li_fat_id || null,
+              fbp: utms.fbp || null,
+              fbc: utms.fbc || null,
+              landing_page_url: window.location.origin + window.location.pathname,
+              source_url: window.location.href,
+              user_agent: navigator.userAgent
+            })
+          }).catch(function(){});
+
+          fetch(baseUrl + '/rest/v1/revops_pipeline', {
+            method: 'POST',
+            headers: cabecalhos,
+            body: JSON.stringify({
+              lead_id: leadId,
+              crm_stage: 'lead',
+              lead_captured_at: new Date().toISOString()
+            })
+          }).catch(function(){});
+
+          fetch(baseUrl + '/rest/v1/capi_events_log', {
+            method: 'POST',
+            headers: cabecalhos,
+            body: JSON.stringify({
+              lead_id: leadId,
+              event_name: 'Lead',
+              meta_status: 'sent',
+              status: 'received'
+            })
+          }).catch(function(){});
+
+          done(true);
+        });
+      })
       .catch(function(){ done(false); });
     });
   }
